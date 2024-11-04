@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      min-height: 100vh;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .interface {
+      display: flex;
+      width: 100%;
+      padding: 20px;
+      gap: 20px;
+    }
+
+    .fence-container {
+      flex: 1;
+      background: #0a0a0a;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      min-height: 800px;
+    }
+
+    .data-panel {
+      width: 300px;
+      background: #151515;
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .data-item {
+      padding: 10px;
+      margin: 5px 0;
+      background: rgba(255,255,255,0.05);
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .data-item:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .controls {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0,0,0,0.8);
+      padding: 15px;
+      border-radius: 8px;
+      z-index: 10;
+    }
+
+    label {
+      display: block;
+      margin: 10px 0;
+      font-size: 14px;
+      color: #888;
+    }
+
+    input[type="range"] {
+      width: 180px;
+      margin-top: 5px;
+    }
+
+    .status {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      color: #666;
+      font-size: 14px;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="interface">
+    <div class="fence-container">
+      <canvas id="fenceCanvas"></canvas>
+      
+      <div class="controls">
+        <label>
+          Cell Size
+          <input type="range" id="cellSize" min="30" max="80" value="50">
+        </label>
+        <label>
+          Wire Thickness
+          <input type="range" id="wireThickness" min="2" max="6" value="3">
+        </label>
+        <label>
+          Highlight Intensity
+          <input type="range" id="highlightIntensity" min="0" max="100" value="30">
+        </label>
+      </div>
+
+      <div class="status">
+        Active Cells: <span id="activeCount">0</span> | Data Points: <span id="dataCount">0</span>
+      </div>
+    </div>
+
+    <div class="data-panel" id="dataPanel">
+      <!-- Data items will be inserted here -->
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('fenceCanvas');
+    const ctx = canvas.getContext('2d');
+    const dataPanel = document.getElementById('dataPanel');
+
+    // Dummy data structure
+    const dummyData = [
+      { id: 1, type: 'Entry', value: 'Access Point A', timestamp: '09:45:22' },
+      { id: 2, type: 'Security', value: 'Perimeter Check', timestamp: '09:46:15' },
+      { id: 3, type: 'Sensor', value: 'Motion Detected', timestamp: '09:47:03' },
+      { id: 4, type: 'System', value: 'Integrity: 98.5%', timestamp: '09:47:30' },
+      { id: 5, type: 'Entry', value: 'Access Point B', timestamp: '09:48:12' },
+      { id: 6, type: 'Alert', value: 'Pattern Analysis', timestamp: '09:49:00' },
+      { id: 7, type: 'Security', value: 'Node Check', timestamp: '09:49:45' },
+      { id: 8, type: 'System', value: 'Load: 32.4%', timestamp: '09:50:22' }
+    ];
+
+    // Set canvas size
+    function resize() {
+      const container = canvas.parentElement;
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
+    
+    window.addEventListener('resize', resize);
+    resize();
+
+    class ChainlinkFence {
+      constructor() {
+        this.cells = [];
+        this.initializeCells();
+      }
+
+      initializeCells() {
+        const cellSize = parseInt(document.getElementById('cellSize').value);
+        this.cells = [];
+        
+        for (let x = 0; x < canvas.width; x += cellSize) {
+          for (let y = 0; y < canvas.height; y += cellSize) {
+            this.cells.push({
+              x, y,
+              active: Math.random() < 0.3,
+              value: Math.random(),
+              phase: Math.random() * Math.PI * 2
+            });
+          }
+        }
+      }
+
+      drawCell(x, y, size, active) {
+        const wireThickness = parseInt(document.getElementById('wireThickness').value);
+        const highlight = parseInt(document.getElementById('highlightIntensity').value) / 100;
+        
+        ctx.lineWidth = wireThickness;
+        
+        // Base wire color
+        let baseColor = active ? 
+          `rgba(180, 200, 255, ${0.6 + highlight * 0.4})` : 
+          `rgba(120, 130, 140, 0.5)`;
+        
+        // Draw main diamond shape
+        ctx.strokeStyle = baseColor;
+        ctx.beginPath();
+        ctx.moveTo(x, y - size/2);
+        ctx.lineTo(x + size/2, y);
+        ctx.lineTo(x, y + size/2);
+        ctx.lineTo(x - size/2, y);
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      update() {
+        this.cells.forEach(cell => {
+          cell.phase += 0.02;
+          if (cell.active) {
+            cell.value = 0.5 + Math.sin(cell.phase) * 0.5;
+          }
+        });
+      }
+
+      draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const cellSize = parseInt(document.getElementById('cellSize').value);
+        
+        this.cells.forEach(cell => {
+          this.drawCell(cell.x, cell.y, cellSize, cell.active);
+        });
+
+        // Update status
+        document.getElementById('activeCount').textContent = 
+          this.cells.filter(c => c.active).length;
+        document.getElementById('dataCount').textContent = 
+          dummyData.length;
+      }
+    }
+
+    // Initialize fence and data panel
+    const fence = new ChainlinkFence();
+
+    function updateDataPanel() {
+      dataPanel.innerHTML = '';
+      dummyData.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'data-item';
+        div.innerHTML = `
+          <strong>${item.type}</strong> | ${item.timestamp}<br>
+          ${item.value}
+        `;
+        div.onclick = () => {
+          fence.initializeCells(); // Refresh cells when clicking on a data item
+        };
+        dataPanel.appendChild(div);
+      });
+    }
+
+    function animate() {
+      fence.update();
+      fence.draw();
+      requestAnimationFrame(animate);
+    }
+
+    // Event listeners
+    document.getElementById('cellSize').addEventListener('change', () => {
+      fence.initializeCells();
+    });
+
+    // Initialize and start
+    updateDataPanel();
+    animate();
+  </script>
+</body>
+</html>

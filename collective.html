@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+    }
+
+    .visualization {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    .controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0,0,0,0.8);
+      padding: 20px;
+      border-radius: 8px;
+      z-index: 100;
+    }
+
+    .parameter {
+      margin: 10px 0;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 14px;
+      color: #aaa;
+    }
+
+    input[type="range"] {
+      width: 200px;
+      margin-right: 10px;
+    }
+
+    .mode-select {
+      background: #333;
+      color: #fff;
+      border: none;
+      padding: 5px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+
+    .info {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="visualization">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="parameter">
+      <label>Connection Strength</label>
+      <input type="range" id="strength" min="0" max="100" value="50">
+    </div>
+    <div class="parameter">
+      <label>Environmental Influence</label>
+      <input type="range" id="environment" min="0" max="100" value="30">
+    </div>
+    <div class="parameter">
+      <label>Interaction Speed</label>
+      <input type="range" id="speed" min="1" max="100" value="50">
+    </div>
+    <div class="parameter">
+      <label>Node Count</label>
+      <input type="range" id="nodes" min="5" max="50" value="20">
+    </div>
+    <select class="mode-select" id="mode">
+      <option value="collective">Collective Effervescence</option>
+      <option value="individual">Individual Interactions</option>
+      <option value="environmental">Environmental Response</option>
+    </select>
+  </div>
+
+  <div class="info">
+    Move mouse to influence interaction patterns
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Node class for interaction points
+    class Node {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+        this.connections = [];
+        this.energy = Math.random();
+        this.size = 3;
+      }
+
+      update() {
+        const strength = document.getElementById('strength').value / 100;
+        const envInfluence = document.getElementById('environment').value / 100;
+        const speed = document.getElementById('speed').value / 100;
+
+        // Environmental influence
+        this.vx += (Math.random() - 0.5) * envInfluence * 0.1;
+        this.vy += (Math.random() - 0.5) * envInfluence * 0.1;
+
+        // Mouse influence
+        if (mouse.x && mouse.y) {
+          const dx = mouse.x - this.x;
+          const dy = mouse.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 200) {
+            this.vx += dx / dist * 0.5;
+            this.vy += dy / dist * 0.5;
+          }
+        }
+
+        // Update position
+        this.x += this.vx * speed;
+        this.y += this.vy * speed;
+
+        // Boundary check
+        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+
+        // Energy transfer through connections
+        this.connections.forEach(other => {
+          const dx = other.x - this.x;
+          const dy = other.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 150) {
+            const energyTransfer = (other.energy - this.energy) * strength * 0.1;
+            this.energy += energyTransfer;
+            other.energy -= energyTransfer;
+          }
+        });
+
+        this.energy = Math.max(0, Math.min(1, this.energy));
+      }
+
+      draw() {
+        const mode = document.getElementById('mode').value;
+        
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size + this.energy * 3, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(${this.energy * 260}, 80%, 50%)`;
+        ctx.fill();
+
+        // Draw connections
+        this.connections.forEach(other => {
+          const dx = other.x - this.x;
+          const dy = other.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist < 150) {
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            
+            if (mode === 'collective') {
+              // Curved connections for collective mode
+              const mid = {
+                x: (this.x + other.x) / 2 - dy * 0.2,
+                y: (this.y + other.y) / 2 + dx * 0.2
+              };
+              ctx.quadraticCurveTo(mid.x, mid.y, other.x, other.y);
+            } else {
+              ctx.lineTo(other.x, other.y);
+            }
+
+            const alpha = 1 - (dist / 150);
+            ctx.strokeStyle = `rgba(${this.energy * 255}, ${other.energy * 255}, 255, ${alpha})`;
+            ctx.lineWidth = (this.energy + other.energy) * 2;
+            ctx.stroke();
+          }
+        });
+      }
+    }
+
+    // Initialize nodes
+    let nodes = [];
+    function initNodes() {
+      const count = document.getElementById('nodes').value;
+      nodes = [];
+      for (let i = 0; i < count; i++) {
+        const node = new Node(
+          Math.random() * canvas.width,
+          Math.random() * canvas.height
+        );
+        nodes.push(node);
+      }
+      // Create connections
+      nodes.forEach(node => {
+        nodes.forEach(other => {
+          if (node !== other && Math.random() < 0.3) {
+            node.connections.push(other);
+          }
+        });
+      });
+    }
+
+    // Mouse tracking
+    const mouse = { x: null, y: null };
+    canvas.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+    canvas.addEventListener('mouseleave', () => {
+      mouse.x = null;
+      mouse.y = null;
+    });
+
+    // Animation loop
+    function animate() {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      nodes.forEach(node => {
+        node.update();
+        node.draw();
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    // Initialize and start
+    document.getElementById('nodes').addEventListener('change', initNodes);
+    initNodes();
+    animate();
+  </script>
+</body>
+</html>
